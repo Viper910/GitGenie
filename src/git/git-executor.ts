@@ -146,7 +146,7 @@ export class GitExecutor {
             command: fullCmd,
             args,
             stdout: stdout.trim(),
-            stderr: stderr.trim(),
+            stderr: stderr.trim() || (!success ? stdout.trim() : ''),
             exitCode
           });
         }
