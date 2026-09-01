@@ -1,0 +1,102 @@
+.ctaSection {
+  padding: var(--spacing-24) var(--spacing-6);
+  background-color: var(--color-bg-primary);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow {
+  position: absolute;
+  bottom: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 400px;
+  background: radial-gradient(circle, var(--color-accent-secondary-glow) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.title {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 800;
+  margin-bottom: var(--spacing-4);
+  color: var(--color-text-primary);
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-8);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-6);
+}
+
+.buttonGroup {
+  display: flex;
+  gap: var(--spacing-4);
+  justify-content: center;
+}
+
+.primaryBtn {
+  background-color: var(--color-accent-primary);
+  color: #000;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 12px 28px;
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  transition: var(--transition-fast);
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.primaryBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px var(--color-accent-primary-glow);
+}
+
+.secondaryBtn {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 12px 28px;
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  transition: var(--transition-fast);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.secondaryBtn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.installCode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+}
+
+.installCode span {
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 600px) {
+  .buttonGroup {
+    flex-direction: column;
+    width: 100%;
+    max-width: 300px;
+  }
+}
