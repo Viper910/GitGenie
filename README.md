@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="image.png" alt="GitGenie Hero Banner" width="800" />
+  <img src="assets/image.png" alt="GitGenie Hero Banner" width="800" />
   <br/>
   <h1>🧞‍♂️ GitGenie</h1>
   <p><b>Production-Grade AI-Powered Git Terminal Assistant</b></p>
