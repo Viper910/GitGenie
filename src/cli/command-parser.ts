@@ -34,8 +34,8 @@ export class CommandParser {
       return 0;
     }
 
-    // 4. Check for --help / -h or empty args
-    if (cleanArgs.length === 0 || cleanArgs.includes('--help') || cleanArgs.includes('-h')) {
+    // 4. Check for --help / -h
+    if (cleanArgs.includes('--help') || cleanArgs.includes('-h')) {
       this.printHelp();
       return 0;
     }
@@ -50,15 +50,17 @@ export class CommandParser {
       return this.handleConfigCommand(cleanArgs.slice(1));
     }
 
-    // 7. Natural Language Request
-    renderBanner(false);
-
+    // 7. Natural Language Request or Interactive Session
     const userPrompt = cleanArgs.join(' ').trim();
     if (!userPrompt) {
-      this.printHelp();
+      // START INTERACTIVE SESSION
+      const { InteractiveSession } = await import('./interactive-session.js');
+      const session = new InteractiveSession();
+      await session.start();
       return 0;
     }
 
+    renderBanner(false);
     const success = await RequestHandler.handle(userPrompt, {
       dryRun,
       autoConfirm,

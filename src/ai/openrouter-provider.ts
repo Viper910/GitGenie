@@ -36,9 +36,9 @@ export class OpenRouterProvider implements AIProvider {
   /**
    * Plan git workflow using OpenRouter LLM
    */
-  async generatePlan(prompt: string, context: RepoContext): Promise<AIPlanResponse> {
+  async generatePlan(prompt: string, context: RepoContext, sessionContext?: import('../session/session-context.js').SessionContext): Promise<AIPlanResponse> {
     const systemPrompt = PromptBuilder.buildSystemPrompt();
-    const userPrompt = PromptBuilder.buildUserPrompt(prompt, context);
+    const userPrompt = PromptBuilder.buildUserPrompt(prompt, context, sessionContext);
 
     const responseText = await this.callChatCompletion([
       { role: 'system', content: systemPrompt },

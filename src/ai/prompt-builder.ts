@@ -75,10 +75,15 @@ ACTION EXAMPLES:
   /**
    * Build user prompt injecting context and developer request
    */
-  static buildUserPrompt(userRequest: string, context: RepoContext): string {
+  static buildUserPrompt(userRequest: string, context: RepoContext, sessionContext?: import('../session/session-context.js').SessionContext): string {
+    const history = sessionContext?.getHistory() || [];
+    const historyText = history.length > 0 
+      ? `\nRECENT CONVERSATION HISTORY:\n${history.map(m => `[${m.role.toUpperCase()}]: ${m.content}`).join('\n')}\n`
+      : '';
+
     return `DEVELOPER REQUEST:
 "${userRequest}"
-
+${historyText}
 CURRENT REPOSITORY CONTEXT:
 - Is Git Repository: ${context.isRepo}
 - Active Branch: ${context.currentBranch || 'N/A'}

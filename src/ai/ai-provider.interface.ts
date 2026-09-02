@@ -34,7 +34,7 @@ export interface AIProvider {
   /**
    * Plan a git workflow based on natural language request and repository context
    */
-  generatePlan(prompt: string, context: RepoContext): Promise<AIPlanResponse>;
+  generatePlan(prompt: string, context: RepoContext, sessionContext?: import('../session/session-context.js').SessionContext): Promise<AIPlanResponse>;
 
   /**
    * Generate conventional commit message based on diff

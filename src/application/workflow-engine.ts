@@ -20,6 +20,7 @@ export interface WorkflowOptions {
   dryRun?: boolean;
   autoConfirm?: boolean;
   verbose?: boolean;
+  sessionContext?: import('../session/session-context.js').SessionContext;
 }
 
 export class WorkflowEngine {
@@ -127,7 +128,7 @@ export class WorkflowEngine {
     progress.start(`Planning safe Git operations with ${this.aiProvider.providerName}...`);
     let plan;
     try {
-      plan = await this.aiProvider.generatePlan(userRequest, context);
+      plan = await this.aiProvider.generatePlan(userRequest, context, mergedOptions.sessionContext);
       progress.succeed('Execution plan created');
     } catch (err) {
       progress.fail('Failed to generate execution plan');
@@ -145,14 +146,24 @@ export class WorkflowEngine {
     const isReadOnly = plan.actions.every(a => a.type === 'EXPLAIN_STATUS' || a.type === 'GET_STATUS' || a.type === 'GET_LOG' || a.type === 'GET_DIFF');
 
     if (!autoConfirm && !isReadOnly && process.stdout.isTTY && !process.env.VITEST && process.env.NODE_ENV !== 'test') {
-      const approval = await prompts({
-        type: 'confirm',
-        name: 'value',
-        message: theme.cyanBold('Do you want GitGenie to execute this plan?'),
-        initial: true
-      });
+      let isApproved = false;
 
-      if (!approval.value) {
+      if (mergedOptions.sessionContext?.voiceModeActive && mergedOptions.sessionContext?.voiceManager) {
+        console.log(theme.cyanBold('\nDo you want GitGenie to execute this plan? (Say Yes or No)'));
+        const voiceInput = await mergedOptions.sessionContext.voiceManager.listenForCommand();
+        const text = (voiceInput || '').toLowerCase();
+        isApproved = ['yes', 'yep', 'sure', 'do it', 'ok', 'yeah', 'go ahead'].some(w => text.includes(w));
+      } else {
+        const approval = await prompts({
+          type: 'confirm',
+          name: 'value',
+          message: theme.cyanBold('Do you want GitGenie to execute this plan?'),
+          initial: true
+        });
+        isApproved = approval.value;
+      }
+
+      if (!isApproved) {
         console.log(`\n${theme.yellow(`${theme.symbols.warning} Plan execution cancelled by user.`)}`);
         this.renderSuggestions(context);
         return false;
@@ -295,14 +306,24 @@ export class WorkflowEngine {
         if (isInteractive && analysis.recoveryActions.length > 0) {
           TerminalRenderer.renderPlan(analysis.recoverySummary, analysis.recoveryActions);
 
-          const approval = await prompts({
-            type: 'confirm',
-            name: 'executeRecovery',
-            message: theme.cyanBold('Would you like GitGenie to execute this AI recovery plan?'),
-            initial: true
-          });
+          let executeRecovery = false;
 
-          if (approval.executeRecovery) {
+          if (mergedOptions.sessionContext?.voiceModeActive && mergedOptions.sessionContext?.voiceManager) {
+            console.log(theme.cyanBold('\nWould you like GitGenie to execute this AI recovery plan? (Say Yes or No)'));
+            const voiceInput = await mergedOptions.sessionContext.voiceManager.listenForCommand();
+            const text = (voiceInput || '').toLowerCase();
+            executeRecovery = ['yes', 'yep', 'sure', 'do it', 'ok', 'yeah', 'go ahead'].some(w => text.includes(w));
+          } else {
+            const approval = await prompts({
+              type: 'confirm',
+              name: 'executeRecovery',
+              message: theme.cyanBold('Would you like GitGenie to execute this AI recovery plan?'),
+              initial: true
+            });
+            executeRecovery = approval.executeRecovery;
+          }
+
+          if (executeRecovery) {
             console.log(`\n${theme.cyanBold(`${theme.symbols.lightning} Executing AI Recovery Plan...`)}`);
             let allStepsRecovered = true;
             for (let r = 0; r < analysis.recoveryActions.length; r++) {
