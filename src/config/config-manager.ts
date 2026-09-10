@@ -15,6 +15,7 @@ export interface GitGenieConfig {
   autoConfirm?: boolean;
   verbose?: boolean;
   theme?: 'neon' | 'plain';
+  voiceModel?: 'tiny.en' | 'base.en' | 'small.en' | 'medium.en' | 'large-v1' | 'large-v2' | 'large-v3';
 }
 
 export class ConfigManager {
@@ -113,6 +114,8 @@ export class ConfigManager {
 
     const theme = (userCfg.theme || 'neon') as 'neon' | 'plain';
 
+    const voiceModel = (process.env.GITGENIE_VOICE_MODEL || userCfg.voiceModel || 'base.en') as 'tiny.en' | 'base.en' | 'small.en' | 'medium.en' | 'large-v1' | 'large-v2' | 'large-v3';
+
     return {
       apiKey,
       model,
@@ -120,7 +123,8 @@ export class ConfigManager {
       timeoutMs,
       autoConfirm,
       verbose,
-      theme
+      theme,
+      voiceModel
     };
   }
 

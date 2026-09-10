@@ -1,5 +1,5 @@
 import { SpeechRecognitionProvider, RecognizedText } from './speech-provider.interface.js';
-import { WhisperProvider } from './providers/whisper-provider.js';
+import { SherpaProvider } from './providers/sherpa-provider.js';
 import { theme } from '../terminal/theme.js';
 import * as readline from 'readline';
 
@@ -7,7 +7,7 @@ export class VoiceManager {
   private provider: SpeechRecognitionProvider;
 
   constructor() {
-    this.provider = new WhisperProvider();
+    this.provider = new SherpaProvider();
   }
 
   async initialize(): Promise<void> {
@@ -19,7 +19,7 @@ export class VoiceManager {
   }
 
   async listenForCommand(): Promise<string | null> {
-    process.stdout.write(theme.purpleBold('\n🎙 Listening... (Auto-stops when you stop speaking)\n'));
+    process.stdout.write(theme.purpleBold('\n🎙 Listening... '));
 
     return new Promise((resolve) => {
       const rl = readline.createInterface({
@@ -27,35 +27,37 @@ export class VoiceManager {
         output: process.stdout,
         terminal: true
       });
-      
+
       let stopped = false;
       const stopRecording = () => {
         if (stopped) return;
         stopped = true;
         rl.close();
-        process.stdout.write(theme.gray('Transcribing... '));
-        this.provider.stop(); 
+        process.stdout.write(theme.gray('\nFinalizing transcription... '));
+        this.provider.stop();
       };
 
-      // Optional manual override if they press enter
-      rl.on('line', () => {
-        stopRecording();
-      });
+      rl.on('line', () => { stopRecording(); });
+      rl.on('SIGINT', () => { stopRecording(); });
 
-      rl.on('SIGINT', () => {
-        // Handle Ctrl+C gracefully
-        stopRecording();
-      });
+      // The onInterim callback
+      const onInterim = (text: string) => {
+        if (stopped) return;
+        // Move to start of line, clear it, and print the updated text
+        readline.clearLine(process.stdout, 0);
+        readline.cursorTo(process.stdout, 0);
+        process.stdout.write(`${theme.purpleBold('🎙 Listening...')} ${theme.cyan(text)}`);
+      };
 
-      this.provider.listen().then((result: RecognizedText) => {
+      this.provider.listen(onInterim).then((result: RecognizedText) => {
         if (!stopped) {
           stopped = true;
           rl.close();
-          process.stdout.write(theme.gray('Transcribing... '));
+          process.stdout.write(theme.gray('\nFinalizing transcription... '));
         }
-        
+
         process.stdout.write(theme.green('Done.\n'));
-        
+
         if (result && result.text) {
           console.log(`\n${theme.purple('Heard:')}`);
           console.log(`"${theme.whiteBold(result.text)}"\n`);

@@ -125,3 +125,5 @@ out/
 .env.local
 .env.*.local
 pnpm-debug.log*
+
+models/

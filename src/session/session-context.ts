@@ -9,6 +9,7 @@ export interface ChatMessage {
 export class SessionContext {
   public conversationContext: ChatMessage[] = [];
   public voiceModeActive: boolean = false;
+  public voiceAwakeMode: boolean = false;
   public voiceManager?: VoiceManager;
   
   constructor() {

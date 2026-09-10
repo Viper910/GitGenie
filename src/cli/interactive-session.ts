@@ -61,6 +61,7 @@ export class InteractiveSession {
 
           if (trimmedInput === '/voice off') {
             this.sessionContext.voiceModeActive = false;
+            this.sessionContext.voiceAwakeMode = false;
             console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
             continue;
           }
@@ -80,15 +81,56 @@ export class InteractiveSession {
         
         if (this.sessionContext.voiceModeActive) {
           const voiceInput = await this.voiceManager.listenForCommand();
-          if (voiceInput) {
-            userCommand = voiceInput;
+          if (voiceInput === null) {
+            // User aborted (e.g. Ctrl+C)
+            this.sessionContext.voiceModeActive = false;
+            this.sessionContext.voiceAwakeMode = false;
+            console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
+            continue;
+          }
+
+          // Hotword Detection
+          const wakeWordRegex = /^(?:gini|hey\s*gini|revo|hey\s*revo|git\s*genie|gg|genie|hey\s*genie)\b[\s,:;-]*(.*)/i;
+          const match = voiceInput.match(wakeWordRegex);
+
+          if (match) {
+            this.sessionContext.voiceAwakeMode = true;
+            const actualCommand = match[1].trim();
+            if (actualCommand === '') {
+                continue; // Just said wake word, nothing else
+            }
+            userCommand = actualCommand;
+          } else if (this.sessionContext.voiceAwakeMode) {
+            const actualCommand = voiceInput.trim();
+            if (actualCommand === '') {
+                continue;
+            }
+            userCommand = actualCommand;
           } else {
-            // User might have aborted or it failed. If they aborted, voiceModeActive might be set to false.
+            console.log(theme.gray(`  (Ignored: say "Hey Gini" to wake up)`));
+            continue;
+          }
+
+          // Voice command for exiting voice mode
+          if (userCommand.toLowerCase().match(/^(exit|stop|disable|close)\s+voice\s+mode$/i)) {
+            this.sessionContext.voiceModeActive = false;
+            this.sessionContext.voiceAwakeMode = false;
+            console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
+            continue;
+          }
+
+          // Voice command to sleep
+          if (userCommand.toLowerCase().match(/^(sleep|go\s+to\s+sleep|pause\s+voice)$/i)) {
+            this.sessionContext.voiceAwakeMode = false;
+            console.log(`\n${theme.purple('🎙 Sleeping. Say "Hey Gini" to wake up.')}`);
             continue;
           }
         } else if (!userCommand) {
           continue;
         }
+
+        // Clean up trailing punctuation from Whisper (e.g., "exit." -> "exit")
+        userCommand = userCommand.replace(/[.,!?]+$/, '').trim();
 
         if (this.isExitCommand(userCommand)) {
           console.log(`\n${theme.green('Thanks for using GitGenie ⚡')}`);
