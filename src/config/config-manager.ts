@@ -16,6 +16,29 @@ export interface GitGenieConfig {
   verbose?: boolean;
   theme?: 'neon' | 'plain';
   voiceModel?: 'tiny.en' | 'base.en' | 'small.en' | 'medium.en' | 'large-v1' | 'large-v2' | 'large-v3';
+  voice?: {
+    enabled?: boolean;
+    autoSubmit?: {
+      enabled?: boolean;
+      silenceTimeoutMs?: number;
+    };
+    continuousMode?: {
+      enabled?: boolean;
+    };
+  };
+}
+
+export interface EffectiveConfig extends Required<GitGenieConfig> {
+  voice: {
+    enabled: boolean;
+    autoSubmit: {
+      enabled: boolean;
+      silenceTimeoutMs: number;
+    };
+    continuousMode: {
+      enabled: boolean;
+    };
+  };
 }
 
 export class ConfigManager {
@@ -70,7 +93,7 @@ export class ConfigManager {
   /**
    * Get merged effective configuration
    */
-  static getEffectiveConfig(): Required<GitGenieConfig> {
+  static getEffectiveConfig(): EffectiveConfig {
     const userCfg = this.loadUserConfig();
 
     const apiKey =
@@ -116,6 +139,17 @@ export class ConfigManager {
 
     const voiceModel = (process.env.GITGENIE_VOICE_MODEL || userCfg.voiceModel || 'base.en') as 'tiny.en' | 'base.en' | 'small.en' | 'medium.en' | 'large-v1' | 'large-v2' | 'large-v3';
 
+    const voice = {
+      enabled: userCfg.voice?.enabled ?? true,
+      autoSubmit: {
+        enabled: userCfg.voice?.autoSubmit?.enabled ?? true,
+        silenceTimeoutMs: userCfg.voice?.autoSubmit?.silenceTimeoutMs ?? 1200
+      },
+      continuousMode: {
+        enabled: userCfg.voice?.continuousMode?.enabled ?? true
+      }
+    };
+
     return {
       apiKey,
       model,
@@ -124,7 +158,8 @@ export class ConfigManager {
       autoConfirm,
       verbose,
       theme,
-      voiceModel
+      voiceModel,
+      voice
     };
   }
 

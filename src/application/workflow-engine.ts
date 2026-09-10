@@ -21,6 +21,7 @@ export interface WorkflowOptions {
   autoConfirm?: boolean;
   verbose?: boolean;
   sessionContext?: import('../session/session-context.js').SessionContext;
+  abortSignal?: AbortSignal;
 }
 
 export class WorkflowEngine {
@@ -130,6 +131,11 @@ export class WorkflowEngine {
     try {
       plan = await this.aiProvider.generatePlan(userRequest, context, mergedOptions.sessionContext);
       progress.succeed('Execution plan created');
+      
+      if (mergedOptions.abortSignal?.aborted) {
+        console.log(theme.yellow(`\nTask aborted by user.`));
+        return false;
+      }
     } catch (err) {
       progress.fail('Failed to generate execution plan');
       throw err;
@@ -182,6 +188,11 @@ export class WorkflowEngine {
     for (let i = 0; i < plan.actions.length; i++) {
       const action = plan.actions[i];
       const desc = action.description || action.type;
+
+      if (mergedOptions.abortSignal?.aborted) {
+        console.log(theme.yellow(`\nTask aborted by user.`));
+        return false;
+      }
 
       // Policy Evaluation
       const evaluation = PolicyEngine.evaluateAction(action);

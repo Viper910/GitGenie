@@ -11,9 +11,7 @@ import { fileURLToPath } from 'url';
 // @ts-ignore
 import sherpa from 'sherpa-onnx';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const MODEL_DIR = path.join(__dirname, '..', 'models', 'sherpa');
+const MODEL_DIR = path.join(os.homedir(), '.gitgenie', 'models', 'sherpa');
 
 const BASE_URL = 'https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-02-21/resolve/main/';
 const FILES = [
@@ -159,7 +157,7 @@ export class SherpaProvider implements SpeechRecognitionProvider {
     throw new Error('Unsupported platform for audio recording.');
   }
 
-  async listen(onInterim?: (text: string) => void): Promise<RecognizedText> {
+  async listen(onInterim?: (text: string) => void, onFinal?: (text: string) => void): Promise<RecognizedText> {
     if (!this.recognizer) {
       throw new Error('SherpaProvider not initialized');
     }
@@ -183,29 +181,43 @@ export class SherpaProvider implements SpeechRecognitionProvider {
       this.ffmpegProcess.stdout!.on('data', (chunk: Buffer) => {
         if (!this.isListening) return;
 
-        // Convert PCM 16-bit to Float32 [-1, 1]
-        const floatSamples = new Float32Array(chunk.length / 2);
-        for (let i = 0; i < chunk.length - 1; i += 2) {
-          const val = chunk.readInt16LE(i);
-          floatSamples[i / 2] = val / 32768.0;
-        }
-
-        stream.acceptWaveform(16000, floatSamples);
-
-        while (this.recognizer.isReady(stream)) {
-          this.recognizer.decode(stream);
-        }
-
-        const result = this.recognizer.getResult(stream);
-        if (result && result.text && result.text !== lastText) {
-          lastText = result.text;
-          if (onInterim) {
-            onInterim(result.text);
+        try {
+          // Convert PCM 16-bit to Float32 [-1, 1]
+          const floatSamples = new Float32Array(chunk.length / 2);
+          for (let i = 0; i < chunk.length - 1; i += 2) {
+            const val = chunk.readInt16LE(i);
+            floatSamples[i / 2] = val / 32768.0;
           }
-        }
 
-        if (this.recognizer.isEndpoint(stream)) {
-          this.stop(); // VAD triggered silence
+          stream.acceptWaveform(16000, floatSamples);
+
+          while (this.recognizer.isReady(stream)) {
+            this.recognizer.decode(stream);
+          }
+
+          const result = this.recognizer.getResult(stream);
+          if (result && result.text && result.text !== lastText) {
+            lastText = result.text;
+            if (onInterim) {
+              onInterim(result.text);
+            }
+          }
+
+          if (this.recognizer.isEndpoint(stream)) {
+            if (onFinal && lastText) {
+               onFinal(lastText);
+            }
+            if (typeof this.recognizer.reset === 'function') {
+              this.recognizer.reset(stream);
+            } else if (typeof stream.reset === 'function') {
+              // @ts-ignore
+              stream.reset();
+            }
+            lastText = '';
+          }
+        } catch (e: any) {
+          logger.debug('Sherpa stream error:', e);
+          // Don't throw, just ignore to avoid crashing process
         }
       });
 

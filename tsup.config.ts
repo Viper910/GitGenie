@@ -10,5 +10,9 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node18',
-  shims: true
+  shims: true,
+  external: [
+    'sherpa-onnx',
+    'ffmpeg-static'
+  ]
 });

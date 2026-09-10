@@ -11,9 +11,11 @@ export interface SpeechRecognitionProvider {
 
   /**
    * Start listening for voice input.
-   * Returns a promise that resolves with the transcribed text when recording stops (e.g., silence detected or manual stop).
+   * Resolves when the session stops (e.g., silence detected or manual stop).
+   * @param onInterim Callback for interim updates
+   * @param onFinal Callback for finalized sentences (for continuous mode)
    */
-  listen(onInterim?: (text: string) => void): Promise<RecognizedText>;
+  listen(onInterim?: (text: string) => void, onFinal?: (text: string) => void): Promise<RecognizedText>;
 
   /**
    * Stop the current listening session.

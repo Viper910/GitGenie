@@ -1,4 +1,3 @@
-import { input } from '@inquirer/prompts';
 import { theme } from '../terminal/theme.js';
 import { renderBanner } from './banner.js';
 import { TerminalRenderer } from '../terminal/renderer.js';
@@ -8,12 +7,15 @@ import { SessionContext } from '../session/session-context.js';
 import { ConfigManager } from '../config/config-manager.js';
 import { VoiceManager } from '../voice/voice-manager.js';
 import { RequestHandler } from '../application/request-handler.js';
+import { TerminalPrompt } from './terminal-prompt.js';
 
 export class InteractiveSession {
   private sessionContext: SessionContext;
   private executor: GitExecutor;
   private inspector: RepositoryInspector;
   private voiceManager: VoiceManager;
+  private terminalPrompt: TerminalPrompt | null = null;
+  private abortController: AbortController | null = null;
 
   constructor() {
     this.sessionContext = new SessionContext();
@@ -21,11 +23,20 @@ export class InteractiveSession {
     this.inspector = new RepositoryInspector(this.executor);
     this.voiceManager = new VoiceManager();
     this.sessionContext.voiceManager = this.voiceManager;
+
+    // Handle global voice interrupts
+    this.voiceManager.on('interrupt', () => {
+      if (this.abortController) {
+        console.log(`\n${theme.yellow('🎙 Voice interrupt received. Cancelling task...')}`);
+        this.abortController.abort();
+      }
+    });
   }
 
   public async start(): Promise<void> {
     renderBanner(false);
     console.log(theme.greenBold('⚡ AI-Powered Git Assistant\n'));
+    console.log(theme.gray('Tip: Press Ctrl+O at any time to toggle voice mode.\n'));
 
     // Initialize Voice Manager
     await this.voiceManager.initialize();
@@ -40,94 +51,89 @@ export class InteractiveSession {
 
     // We must handle ctrl+c gracefully
     process.on('SIGINT', () => {
-      console.log(`\n${theme.yellow('Use "exit" or "/exit" to close the session safely.')}`);
-      // Don't kill process unless forced
+      if (this.terminalPrompt) {
+         this.terminalPrompt.forceClose();
+      } else {
+         console.log(`\n${theme.yellow('Use "exit" or "/exit" to close the session safely.')}`);
+      }
     });
 
     while (active) {
+      const config = ConfigManager.getEffectiveConfig();
       try {
-        let trimmedInput = '';
+        const promptPrefixBase = theme.cyanBold('⚡ gitgenie ❯ ');
+        this.terminalPrompt = new TerminalPrompt({ promptPrefix: promptPrefixBase });
 
-        if (!this.sessionContext.voiceModeActive) {
-          const promptPrefix = theme.cyanBold('⚡ gitgenie ❯ ');
-            
-          const userInput = await input({
-            message: promptPrefix,
-            theme: { prefix: '' }
-          });
-
-          trimmedInput = userInput.trim();
-          if (!trimmedInput) continue;
-
-          if (trimmedInput === '/voice off') {
+        // Wire up terminal prompt and voice manager
+        this.terminalPrompt.on('toggle-voice', () => {
+          if (this.voiceManager.isCurrentlyListening) {
+            this.voiceManager.stopListening();
+            this.terminalPrompt?.setPrompt(promptPrefixBase);
             this.sessionContext.voiceModeActive = false;
-            this.sessionContext.voiceAwakeMode = false;
-            console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
-            continue;
-          }
-
-          if (trimmedInput === '/voice status') {
-            console.log(`\n${theme.purple('🎙 Voice mode is ')}${this.sessionContext.voiceModeActive ? theme.green('ACTIVE') : theme.yellow('INACTIVE')}.`);
-            continue;
-          }
-
-          if (trimmedInput === '/voice') {
-            this.sessionContext.voiceModeActive = true;
-            console.log(`\n${theme.purple('🎙 Voice mode enabled.')}`);
-          }
-        }
-
-        let userCommand = trimmedInput;
-        
-        if (this.sessionContext.voiceModeActive) {
-          const voiceInput = await this.voiceManager.listenForCommand();
-          if (voiceInput === null) {
-            // User aborted (e.g. Ctrl+C)
-            this.sessionContext.voiceModeActive = false;
-            this.sessionContext.voiceAwakeMode = false;
-            console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
-            continue;
-          }
-
-          // Hotword Detection
-          const wakeWordRegex = /^(?:gini|hey\s*gini|revo|hey\s*revo|git\s*genie|gg|genie|hey\s*genie)\b[\s,:;-]*(.*)/i;
-          const match = voiceInput.match(wakeWordRegex);
-
-          if (match) {
-            this.sessionContext.voiceAwakeMode = true;
-            const actualCommand = match[1].trim();
-            if (actualCommand === '') {
-                continue; // Just said wake word, nothing else
-            }
-            userCommand = actualCommand;
-          } else if (this.sessionContext.voiceAwakeMode) {
-            const actualCommand = voiceInput.trim();
-            if (actualCommand === '') {
-                continue;
-            }
-            userCommand = actualCommand;
           } else {
-            console.log(theme.gray(`  (Ignored: say "Hey Gini" to wake up)`));
-            continue;
+            this.sessionContext.voiceModeActive = true;
+            this.terminalPrompt?.setPrompt(theme.purpleBold('🎤 Listening... ') + promptPrefixBase);
+            this.voiceManager.startListening();
           }
+        });
 
-          // Voice command for exiting voice mode
-          if (userCommand.toLowerCase().match(/^(exit|stop|disable|close)\s+voice\s+mode$/i)) {
-            this.sessionContext.voiceModeActive = false;
-            this.sessionContext.voiceAwakeMode = false;
-            console.log(`\n${theme.purple('🎙 Voice mode disabled.')}`);
-            continue;
-          }
+        this.terminalPrompt.on('sigint', () => {
+           console.log(`\n${theme.yellow('Use "exit" or "/exit" to close the session safely.')}`);
+        });
 
-          // Voice command to sleep
-          if (userCommand.toLowerCase().match(/^(sleep|go\s+to\s+sleep|pause\s+voice)$/i)) {
-            this.sessionContext.voiceAwakeMode = false;
-            console.log(`\n${theme.purple('🎙 Sleeping. Say "Hey Gini" to wake up.')}`);
-            continue;
+        const onInterim = (text: string) => {
+          if (this.terminalPrompt) {
+            this.terminalPrompt.setPrompt(theme.purpleBold('🎤 Listening... ') + promptPrefixBase);
+            this.terminalPrompt.updateInterimText(text);
           }
-        } else if (!userCommand) {
-          continue;
+        };
+
+        const onFinal = (text: string) => {
+          if (this.terminalPrompt) {
+            this.terminalPrompt.commitFinalText(text);
+            if (config.voice.autoSubmit.enabled) {
+              this.terminalPrompt.setPrompt(theme.purple('Waiting for speech... ') + promptPrefixBase);
+            }
+          }
+        };
+
+        const onSubmit = () => {
+          if (this.terminalPrompt) {
+            this.terminalPrompt.setPrompt(theme.green('✓ Voice command detected ') + promptPrefixBase);
+            this.terminalPrompt.forceSubmit();
+          }
+        };
+
+        const onCancel = () => {
+          if (this.terminalPrompt) {
+            this.terminalPrompt.clearBuffer();
+            this.terminalPrompt.setPrompt(theme.purpleBold('🎤 Listening... ') + promptPrefixBase);
+          }
+        };
+
+        this.voiceManager.on('interim', onInterim);
+        this.voiceManager.on('final', onFinal);
+        this.voiceManager.on('submit', onSubmit);
+        this.voiceManager.on('cancel', onCancel);
+
+        // If continuous mode or we just toggled, ensure we start listening if active
+        if (this.sessionContext.voiceModeActive && !this.voiceManager.isCurrentlyListening) {
+          this.terminalPrompt.setPrompt(theme.purpleBold('🎤 Listening... ') + promptPrefixBase);
+          this.voiceManager.startListening();
         }
+
+        // Wait for user input (either typed or voice-transcribed + enter)
+        const userInput = await this.terminalPrompt.ask();
+        
+        // Cleanup listeners
+        this.voiceManager.removeListener('interim', onInterim);
+        this.voiceManager.removeListener('final', onFinal);
+        this.voiceManager.removeListener('submit', onSubmit);
+        this.voiceManager.removeListener('cancel', onCancel);
+        this.terminalPrompt = null;
+
+        let userCommand = userInput.trim();
+        if (!userCommand) continue;
 
         // Clean up trailing punctuation from Whisper (e.g., "exit." -> "exit")
         userCommand = userCommand.replace(/[.,!?]+$/, '').trim();
@@ -157,11 +163,15 @@ export class InteractiveSession {
         this.sessionContext.addMessage('user', userCommand);
 
         // Process request
-        const config = ConfigManager.getEffectiveConfig();
+        this.abortController = new AbortController();
+        
         const success = await RequestHandler.handle(userCommand, {
           verbose: process.argv.includes('--verbose'),
-          sessionContext: this.sessionContext
+          sessionContext: this.sessionContext,
+          abortSignal: this.abortController.signal
         });
+
+        this.abortController = null;
 
         // Add AI result placeholder in context (will be refined in AI Provider update)
         if (success) {
@@ -174,10 +184,21 @@ export class InteractiveSession {
         repoContext = await this.inspector.inspect();
 
         console.log(''); // newline for spacing
+        
+        // Continuous mode logic
+        if (this.sessionContext.voiceModeActive) {
+           if (!config.voice.continuousMode.enabled) {
+             this.sessionContext.voiceModeActive = false;
+             if (this.voiceManager.isCurrentlyListening) {
+               await this.voiceManager.stopListening();
+             }
+           }
+        }
       } catch (err: any) {
-        // Handling `@inquirer/prompts` cancellation (Ctrl+C usually throws an Error with a specific name or message)
         if (err.name === 'ExitPromptError' || err.message.includes('User force closed the prompt')) {
           console.log(`\n${theme.yellow('Use "exit" or "/exit" to close the session safely.')}`);
+        } else if (err.message === 'TerminalPrompt is already active.') {
+          // ignore double execution
         } else {
           console.error(theme.red(`\nAn unexpected error occurred: ${err.message}`));
         }
@@ -190,7 +211,7 @@ export class InteractiveSession {
 
   private isExitCommand(cmd: string): boolean {
     const lower = cmd.toLowerCase();
-    return ['exit', 'quit', 'close', 'goodbye', 'stop gitgenie', '/exit', '/quit'].includes(lower);
+    return ['exit', 'quit', 'close', 'goodbye', 'stop gitgenie', 'close gitgenie', '/exit', '/quit'].includes(lower);
   }
 
   private renderContextPanel(context: RepoContext): void {
