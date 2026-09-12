@@ -1,5 +1,5 @@
 {
-  "name": "gitgenie",
+  "name": "@akbforge/gitgenie",
   "version": "1.0.0",
   "description": "Production-Grade AI-Powered Git Terminal Assistant",
   "type": "module",
@@ -11,6 +11,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "tsx bin/gitgenie.ts",
     "build": "tsup",
